@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  clerkId           String    @unique
+  email             String    @unique
+  username          String    @unique
+  displayName       String?
+  avatarUrl         String?
+  bio               String?
+  isVerified        Boolean   @default(false)
+  isCreator         Boolean   @default(false)
+  subscriptionTier  String    @default("free") // free, pro, premium
+  subscriptionEnds  DateTime?
+  
+  // Earnings
+  totalEarnings     Float     @default(0)
+  availableBalance  Float     @default(0)
+  lifetimeTips      Float     @default(0)
+  
+  // Social
+  followers         Int       @default(0)
+  following         Int       @default(0)
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  videos            Video[]
+  tipsReceived      Tip[]     @relation("TipsReceived")
+  tipsSent          Tip[]     @relation("TipsSent")
+  battlesAsCreator1 Battle[]  @relation("Creator1")
+  battlesAsCreator2 Battle[]  @relation("Creator2")
+  battleVotes       BattleVote[]
+  comments          Comment[]
+  likes             Like[]
+  bookmarks         Bookmark[]
+  
+  @@map("users")
+}
+
+model Video {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  videoUrl      String
+  thumbnailUrl  String?
+  duration      Int      // in seconds
+  
+  // Engagement
+  views         Int      @default(0)
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  shares        Int      @default(0)
+  bookmarks     Int      @default(0)
+  
+  // Monetization
+  isLocked      Boolean  @default(false)
+  unlockPrice   Float?   // Price to unlock video
+  tipsTotal     Float    @default(0)
+  
+  // Metadata
+  hashtags      String[]
+  mood          String?  // For mood matching feature
+  
+  // Relations
+  creatorId     String
+  creator       User     @relation(fields: [creatorId], references: [id])
+  
+  tips          Tip[]
+  commentsList  Comment[]
+  likesList     Like[]
+  bookmarksList Bookmark[]
+  battle1       Battle[] @relation("Video1")
+  battle2       Battle[] @relation("Video2")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("videos")
+}
+
+model Tip {
+  id          String   @id @default(uuid())
+  amount      Float
+  message     String?
+  
+  // Relations
+  senderId    String
+  sender      User     @relation("TipsSent", fields: [senderId], references: [id])
+  
+  recipientId String
+  recipient   User     @relation("TipsReceived", fields: [recipientId], references: [id])
+  
+  videoId     String
+  video       Video    @relation(fields: [videoId], references: [id])
+  
+  // Stripe
+  stripePaymentIntentId String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("tips")
+}
+
+model Battle {
+  id            String   @id @default(uuid())
+  status        String   @default("pending") // pending, live, ended
+  theme         String?
+  prizePool     Float    @default(0)
+  
+  // Creator 1
+  creator1Id    String
+  creator1      User     @relation("Creator1", fields: [creator1Id], references: [id])
+  video1Id      String
+  video1        Video    @relation("Video1", fields: [video1Id], references: [id])
+  votes1        Int      @default(0)
+  
+  // Creator 2
+  creator2Id    String
+  creator2      User     @relation("Creator2", fields: [creator2Id], references: [id])
+  video2Id      String
+  video2        Video    @relation("Video2", fields: [video2Id], references: [id])
+  votes2        Int      @default(0)
+  
+  // Winner
+  winnerId      String?
+  endedAt       DateTime?
+  
+  votes         BattleVote[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("battles")
+}
+
+model BattleVote {
+  id        String   @id @default(uuid())
+  amount    Float    // Amount tipped as vote
+  
+  battleId  String
+  battle    Battle   @relation(fields: [battleId], references: [id])
+  
+  voterId   String
+  voter     User     @relation(fields: [voterId], references: [id])
+  
+  votedFor  String   // creator1 or creator2
+  
+  createdAt DateTime @default(now())
+  
+  @@map("battle_votes")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  likes     Int      @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([videoId, userId])
+  @@map("likes")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([videoId, userId])
+  @@map("bookmarks")
+}
+
+model Sponsor {
+  id          String   @id @default(uuid())
+  name        String
+  logoUrl     String?
+  website     String?
+  
+  // Campaign details
+  package     String   // starter, growth, scale, enterprise
+  monthlySpend Float
+  
+  // Status
+  isActive    Boolean  @default(true)
+  startDate   DateTime
+  endDate     DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("sponsors")
+}
